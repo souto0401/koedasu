@@ -1,0 +1,544 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>コエダス</title>
+<meta name="description" content="書いた文字や定型文をその場で読み上げるツール">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="コエダス">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#EEF1F4" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#12161C" media="(prefers-color-scheme: dark)">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="icon" type="image/png" href="icon.png">
+<link rel="manifest" href="manifest.json">
+<style>
+:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0}
+img{max-width:100%}
+[hidden]{display:none!important}
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700&family=Noto+Sans+JP:wght@400;500;700&display=swap">
+<style>
+/* Layout: single-column phone tool — text card on top, settings & dictionary below, play controls pinned to the bottom edge */
+:root {
+  --bg: #EEF1F4;
+  --surface: #FFFFFF;
+  --ink: #18202B;
+  --muted: #5E6B7A;
+  --line: #D6DDE5;
+  --accent: #2A55C9;
+  --accent-ink: #FFFFFF;
+  --mark: #FFE07A;
+  --mark-ink: #18202B;
+  --seg: #E3EAFB;
+  --danger: #B3383B;
+  --f-display: "Zen Maru Gothic", "Hiragino Maru Gothic ProN", "Hiragino Sans", sans-serif;
+  --f-body: "Noto Sans JP", "Hiragino Sans", "Hiragino Kaku Gothic ProN", system-ui, sans-serif;
+  --r: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12161C; --surface: #1C222B; --ink: #E8EDF3; --muted: #95A2B2; --line: #2E3744;
+    --accent: #7FA2FF; --accent-ink: #0E1420; --mark: #F2C94C; --mark-ink: #12161C; --seg: #24304A; --danger: #F08A8C;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12161C; --surface: #1C222B; --ink: #E8EDF3; --muted: #95A2B2; --line: #2E3744;
+  --accent: #7FA2FF; --accent-ink: #0E1420; --mark: #F2C94C; --mark-ink: #12161C; --seg: #24304A; --danger: #F08A8C;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.6;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0;
+}
+.wrap { max-width: 640px; margin: 0 auto; padding-block: 20px 140px; display: flex; flex-direction: column; gap: 20px; }
+header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+h1 { font-family: var(--f-display); font-weight: 700; font-size: 28px; margin: 0; letter-spacing: .02em; }
+h1 span { color: var(--accent); }
+.tag { font-size: 12px; color: var(--muted); }
+h2 { font-family: var(--f-display); font-size: 17px; margin: 0; font-weight: 700; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+.textcard { padding: 0; overflow: hidden; gap: 0; }
+textarea, .reader {
+  width: 100%; min-height: 240px; border: 0; margin: 0; padding: 18px; resize: vertical;
+  font-family: var(--f-display); font-weight: 500; font-size: 20px; line-height: 1.85; color: var(--ink); background: transparent;
+  white-space: pre-wrap; word-break: break-word;
+}
+textarea:focus { outline: none; }
+.textcard:focus-within { border-color: var(--accent); }
+.reader { overflow-y: auto; max-height: 60vh; }
+.seg { border-radius: 6px; cursor: pointer; transition: background .15s; }
+.seg.on { background: var(--seg); }
+mark { background: var(--mark); color: var(--mark-ink); border-radius: 4px; padding: 0 1px; }
+.textfoot { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 12px 8px 18px; border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); flex-wrap: wrap; }
+.linkbtn { background: none; border: 0; color: var(--accent); font: inherit; font-weight: 500; padding: 6px 8px; cursor: pointer; border-radius: 8px; }
+.row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+label { font-size: 13px; font-weight: 500; color: var(--muted); }
+select, input[type=text] {
+  font: inherit; font-size: 16px; color: var(--ink); background: var(--bg); border: 1px solid var(--line);
+  border-radius: 10px; padding: 10px 12px; width: 100%; min-width: 0;
+}
+select:focus, input[type=text]:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.chip { font: inherit; font-size: 14px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 999px; padding: 7px 14px; cursor: pointer; }
+.chip[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.slider { display: grid; grid-template-columns: 3.5em 1fr 4em; align-items: center; gap: 12px; }
+.slider output { font-variant-numeric: tabular-nums; text-align: right; font-weight: 500; font-size: 14px; }
+input[type=range] { width: 100%; accent-color: var(--accent); min-width: 0; }
+.btn { font: inherit; font-weight: 700; border: 0; border-radius: 10px; padding: 10px 16px; cursor: pointer; background: var(--accent); color: var(--accent-ink); white-space: nowrap; }
+.btn.ghost { background: var(--bg); color: var(--ink); border: 1px solid var(--line); }
+button:focus-visible, .chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.dictadd { display: grid; grid-template-columns: 1fr auto 1fr auto; gap: 8px; align-items: center; }
+.dictadd .arrow { color: var(--muted); }
+.dictlist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.dictlist li { display: grid; grid-template-columns: 1fr auto 1fr auto; gap: 8px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
+.dictlist li span { min-width: 0; overflow-wrap: anywhere; }
+.dictlist .arrow { color: var(--muted); }
+.del { background: none; border: 0; color: var(--danger); font: inherit; font-size: 13px; cursor: pointer; padding: 6px 8px; border-radius: 8px; }
+.empty { color: var(--muted); font-size: 13px; }
+.phrases { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+.ph { position: relative; display: flex; min-width: 0; }
+.phbtn { flex: 1; min-width: 0; text-align: left; font-family: var(--f-display); font-weight: 500; font-size: 16px; line-height: 1.4; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; cursor: pointer; overflow-wrap: anywhere; }
+.phbtn:active { background: var(--seg); }
+.phbtn.speaking { background: var(--seg); border-color: var(--accent); }
+.phtools { display: flex; gap: 2px; margin-left: 4px; flex-direction: column; justify-content: center; }
+.phtools button { font: inherit; font-size: 12px; background: none; border: 0; padding: 4px 6px; border-radius: 6px; cursor: pointer; color: var(--accent); white-space: nowrap; }
+.phtools button.x { color: var(--danger); }
+.phadd { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+.note { font-size: 12px; color: var(--muted); margin: 0; }
+.warn { background: var(--surface); border: 1px solid var(--danger); color: var(--danger); border-radius: var(--r); padding: 12px 14px; font-size: 14px; }
+.bar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 5;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  border-top: 1px solid var(--line);
+  padding-top: 12px; padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.barin { max-width: 640px; margin: 0 auto; display: flex; align-items: center; gap: 14px; }
+.play { width: 64px; height: 64px; border-radius: 50%; border: 0; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; cursor: pointer; flex: none; }
+.stop { width: 46px; height: 46px; border-radius: 50%; border: 1px solid var(--line); background: var(--bg); color: var(--ink); display: grid; place-items: center; cursor: pointer; flex: none; }
+.stop:disabled { opacity: .4; cursor: default; }
+.status { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 6px; }
+.status strong { font-size: 14px; }
+.status small { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.prog { height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; }
+.prog i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .25s; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+@media (max-width: 420px) {
+  .dictadd { grid-template-columns: 1fr auto 1fr; }
+  .dictadd .btn { grid-column: 1 / -1; }
+  textarea, .reader { font-size: 18px; }
+}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>コエ<span>ダス</span></h1>
+    <span class="tag">書いた文字を、その場で声に</span>
+  </header>
+
+  <div id="warn" class="warn" hidden>このブラウザは読み上げに対応していません。iPhoneのSafariで開いてください。</div>
+
+  <section class="card" aria-labelledby="h-ph">
+    <div class="row">
+      <h2 id="h-ph">定型文</h2>
+      <button class="linkbtn" id="phedit" type="button" aria-pressed="false">編集</button>
+    </div>
+    <div class="phrases" id="phrases"></div>
+    <form class="phadd" id="phform" hidden>
+      <input type="text" id="phin" placeholder="新しい定型文(例:トイレはどこですか?)" aria-label="新しい定型文" autocomplete="off">
+      <button class="btn" type="submit">追加</button>
+    </form>
+    <p class="note" id="phnote">タップですぐ読み上げます。「編集」で追加・削除、文章欄への挿入ができます。</p>
+  </section>
+
+  <section class="card textcard" aria-label="読み上げる文章">
+    <textarea id="text" aria-label="読み上げる文章" placeholder="ここに文字を入力"></textarea>
+    <div id="reader" class="reader" hidden aria-live="off"></div>
+    <div class="textfoot">
+      <span id="count">0文字</span>
+      <span>
+        <button class="linkbtn" id="clear" type="button">クリア</button>
+      </span>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="h-voice">
+    <div class="row">
+      <h2 id="h-voice">声</h2>
+      <button class="btn ghost" id="test" type="button">試し聞き</button>
+    </div>
+    <select id="voice" aria-label="音声"></select>
+    <div class="chips" role="group" aria-label="プリセット">
+      <button class="chip" type="button" data-preset="drum">ドラム風</button>
+      <button class="chip" type="button" data-preset="normal">標準</button>
+      <button class="chip" type="button" data-preset="slow">ゆっくり</button>
+    </div>
+    <div class="slider">
+      <label for="rate">速度</label>
+      <input type="range" id="rate" min="0.5" max="2" step="0.05">
+      <output id="rateV" for="rate"></output>
+    </div>
+    <div class="slider">
+      <label for="pitch">音程</label>
+      <input type="range" id="pitch" min="0" max="2" step="0.05">
+      <output id="pitchV" for="pitch"></output>
+    </div>
+    <div class="slider">
+      <label for="volume">音量</label>
+      <input type="range" id="volume" min="0" max="1" step="0.05">
+      <output id="volumeV" for="volume"></output>
+    </div>
+    <p class="note">「設定 → アクセシビリティ → 読み上げコンテンツ → 声 → 日本語」で拡張・高品質の声を追加すると、ここで選べる声が増えます。</p>
+  </section>
+
+  <section class="card" aria-labelledby="h-dict">
+    <h2 id="h-dict">読み方辞書</h2>
+    <form class="dictadd" id="dictform">
+      <input type="text" id="dw" placeholder="表記(例:VIVANT)" aria-label="表記" autocomplete="off">
+      <span class="arrow">→</span>
+      <input type="text" id="dr" placeholder="読み(例:ヴィヴァン)" aria-label="読み" autocomplete="off">
+      <button class="btn" type="submit">登録</button>
+    </form>
+    <ul class="dictlist" id="dictlist"></ul>
+  </section>
+</div>
+
+<div class="bar">
+  <div class="barin">
+    <button class="stop" id="stop" type="button" aria-label="停止" disabled>
+      <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="2" width="12" height="12" rx="2" fill="currentColor"/></svg>
+    </button>
+    <button class="play" id="play" type="button" aria-label="再生">
+      <svg id="icoPlay" width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><path d="M8 4.5v17a1 1 0 0 0 1.5.86l14-8.5a1 1 0 0 0 0-1.72l-14-8.5A1 1 0 0 0 8 4.5z" fill="currentColor"/></svg>
+      <svg id="icoPause" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" hidden><rect x="5" y="4" width="5" height="16" rx="1.5" fill="currentColor"/><rect x="14" y="4" width="5" height="16" rx="1.5" fill="currentColor"/></svg>
+    </button>
+    <div class="status">
+      <strong id="stTitle">待機中</strong>
+      <div class="prog"><i id="progBar"></i></div>
+      <small id="stSub">再生を押すと読み上げます</small>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const $ = (s) => document.querySelector(s);
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  };
+  const synth = window.speechSynthesis;
+  if (!synth || !window.SpeechSynthesisUtterance) { $('#warn').hidden = false; }
+
+  const PRESETS = {
+    drum:   { rate: 1.05, pitch: 1.35, volume: 1 },
+    normal: { rate: 1,    pitch: 1,    volume: 1 },
+    slow:   { rate: 0.8,  pitch: 1.1,  volume: 1 }
+  };
+  const SAMPLE = 'こんにちは。書いた文字をこの声で読み上げます。\n下の再生ボタンを押してください。VIVANTのように辞書に登録した言葉は、登録した読み方で読み上げます。';
+
+  const textEl = $('#text'), reader = $('#reader');
+  let settings = Object.assign({}, PRESETS.drum, store.get('kd.settings', {}));
+  let dict = store.get('kd.dict', null);
+  if (!Array.isArray(dict)) dict = [{ w: 'VIVANT', r: 'ヴィヴァン' }, { w: 'iPhone', r: 'アイフォーン' }];
+  textEl.value = store.get('kd.text', SAMPLE);
+
+  /* ---------- text ---------- */
+  function updateCount() { $('#count').textContent = textEl.value.length + '文字'; }
+  textEl.addEventListener('input', () => { store.set('kd.text', textEl.value); updateCount(); });
+  $('#clear').addEventListener('click', () => { stop(); textEl.value = ''; store.set('kd.text', ''); updateCount(); textEl.focus(); });
+  updateCount();
+
+  /* ---------- settings ---------- */
+  const fmt = { rate: (v) => v.toFixed(2) + '×', pitch: (v) => v.toFixed(2), volume: (v) => Math.round(v * 100) + '%' };
+  function renderSettings() {
+    ['rate', 'pitch', 'volume'].forEach((k) => { $('#' + k).value = settings[k]; $('#' + k + 'V').textContent = fmt[k](+settings[k]); });
+    document.querySelectorAll('.chip').forEach((c) => {
+      const p = PRESETS[c.dataset.preset];
+      c.setAttribute('aria-pressed', String(p.rate == settings.rate && p.pitch == settings.pitch && p.volume == settings.volume));
+    });
+  }
+  ['rate', 'pitch', 'volume'].forEach((k) => {
+    $('#' + k).addEventListener('input', (e) => { settings[k] = +e.target.value; store.set('kd.settings', settings); renderSettings(); });
+  });
+  document.querySelectorAll('.chip').forEach((c) => c.addEventListener('click', () => {
+    Object.assign(settings, PRESETS[c.dataset.preset]); store.set('kd.settings', settings); renderSettings();
+  }));
+  renderSettings();
+
+  /* ---------- voices ---------- */
+  const voiceSel = $('#voice');
+  let voices = [];
+  function loadVoices() {
+    if (!synth) return;
+    const all = synth.getVoices();
+    const ja = all.filter((v) => /^ja/i.test(v.lang));
+    if (ja.length === voices.length && ja.length) return;
+    voices = ja;
+    voiceSel.innerHTML = '';
+    const def = document.createElement('option'); def.value = ''; def.textContent = '端末の標準(日本語)'; voiceSel.appendChild(def);
+    voices.forEach((v) => {
+      const o = document.createElement('option'); o.value = v.voiceURI;
+      o.textContent = v.name + (v.localService === false ? '(オンライン)' : '');
+      voiceSel.appendChild(o);
+    });
+    const saved = settings.voiceURI || '';
+    voiceSel.value = voices.some((v) => v.voiceURI === saved) ? saved : '';
+  }
+  voiceSel.addEventListener('change', () => { settings.voiceURI = voiceSel.value; store.set('kd.settings', settings); });
+  if (synth) {
+    loadVoices();
+    if ('onvoiceschanged' in synth) synth.addEventListener('voiceschanged', loadVoices);
+    setTimeout(loadVoices, 300); setTimeout(loadVoices, 1200);
+  }
+
+  /* ---------- dictionary ---------- */
+  function renderDict() {
+    const ul = $('#dictlist'); ul.innerHTML = '';
+    if (!dict.length) { const li = document.createElement('li'); li.className = 'empty'; li.style.display = 'block'; li.textContent = 'まだ登録はありません。'; ul.appendChild(li); return; }
+    dict.forEach((d, i) => {
+      const li = document.createElement('li');
+      const a = document.createElement('span'); a.textContent = d.w;
+      const ar = document.createElement('span'); ar.className = 'arrow'; ar.textContent = '→';
+      const b = document.createElement('span'); b.textContent = d.r;
+      const x = document.createElement('button'); x.type = 'button'; x.className = 'del'; x.textContent = '削除';
+      x.setAttribute('aria-label', d.w + ' を削除');
+      x.addEventListener('click', () => { dict.splice(i, 1); store.set('kd.dict', dict); renderDict(); });
+      li.append(a, ar, b, x); ul.appendChild(li);
+    });
+  }
+  $('#dictform').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const w = $('#dw').value.trim(), r = $('#dr').value.trim();
+    if (!w || !r) return;
+    const ex = dict.find((d) => d.w === w);
+    if (ex) ex.r = r; else dict.push({ w, r });
+    store.set('kd.dict', dict); renderDict();
+    $('#dw').value = ''; $('#dr').value = ''; $('#dw').focus();
+  });
+  renderDict();
+
+  function applyDict(s) {
+    const list = dict.slice().sort((a, b) => b.w.length - a.w.length);
+    let out = s;
+    list.forEach((d) => { if (d.w) out = out.split(d.w).join(d.r); });
+    return out;
+  }
+
+  /* ---------- segmentation ---------- */
+  function segment(text) {
+    const re = /[^。！？!?\n]*[。！？!?]+[」』)）]*|[^。！？!?\n]+/g;
+    const segs = []; let m;
+    while ((m = re.exec(text))) {
+      const raw = m[0];
+      if (!raw.trim()) continue;
+      const spoken = applyDict(raw);
+      segs.push({ start: m.index, end: m.index + raw.length, raw, spoken, exact: spoken === raw });
+    }
+    return segs;
+  }
+  const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+  function renderReader(text, segs) {
+    let html = '', pos = 0;
+    segs.forEach((s, i) => {
+      html += esc(text.slice(pos, s.start));
+      html += '<span class="seg" data-i="' + i + '">' + esc(s.raw) + '</span>';
+      pos = s.end;
+    });
+    html += esc(text.slice(pos));
+    reader.innerHTML = html;
+  }
+
+  /* ---------- playback ---------- */
+  let segs = [], cur = -1, state = 'idle', token = 0, srcText = '';
+
+  function setUI() {
+    const playing = state === 'playing';
+    $('#icoPlay').hidden = playing; $('#icoPause').hidden = !playing;
+    $('#play').setAttribute('aria-label', playing ? '一時停止' : (state === 'paused' ? '再開' : '再生'));
+    $('#stop').disabled = state === 'idle';
+    textEl.hidden = state !== 'idle'; reader.hidden = state === 'idle';
+    const t = { idle: '待機中', playing: '読み上げ中', paused: '一時停止中' }[state];
+    $('#stTitle').textContent = t;
+    if (state === 'idle') { $('#stSub').textContent = '再生を押すと読み上げます'; $('#progBar').style.width = '0'; }
+    else {
+      $('#stSub').textContent = (cur + 1) + ' / ' + segs.length + ' 文' + (state === 'playing' ? ' ・ 文をタップでそこから' : '');
+      $('#progBar').style.width = (segs.length ? ((cur + 1) / segs.length) * 100 : 0) + '%';
+    }
+  }
+
+  function markSeg(i) {
+    reader.querySelectorAll('.seg').forEach((el) => {
+      const on = +el.dataset.i === i;
+      el.classList.toggle('on', on);
+      if (!on && el.querySelector('mark')) el.textContent = segs[+el.dataset.i].raw;
+    });
+    const el = reader.querySelector('.seg[data-i="' + i + '"]');
+    if (el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+
+  function markWord(i, idx, len) {
+    const el = reader.querySelector('.seg[data-i="' + i + '"]'); if (!el) return;
+    const raw = segs[i].raw;
+    if (idx < 0 || idx >= raw.length) return;
+    const n = len && len > 0 ? len : 1;
+    el.innerHTML = esc(raw.slice(0, idx)) + '<mark>' + esc(raw.slice(idx, idx + n)) + '</mark>' + esc(raw.slice(idx + n));
+  }
+
+  function makeUtter(text) {
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'ja-JP';
+    const v = voices.find((x) => x.voiceURI === settings.voiceURI);
+    if (v) u.voice = v;
+    u.rate = settings.rate; u.pitch = settings.pitch; u.volume = settings.volume;
+    return u;
+  }
+
+  function speakFrom(i) {
+    if (i >= segs.length) { finish(); return; }
+    cur = i; state = 'playing'; markSeg(i); setUI();
+    const my = token;
+    const u = makeUtter(segs[i].spoken);
+    u.onboundary = (e) => {
+      if (my !== token) return;
+      if (e.name && e.name !== 'word') return;
+      if (segs[i].exact) markWord(i, e.charIndex, e.charLength);
+    };
+    u.onend = () => { if (my === token) speakFrom(i + 1); };
+    u.onerror = (e) => {
+      if (my !== token) return;
+      if (e.error === 'interrupted' || e.error === 'canceled') return;
+      speakFrom(i + 1);
+    };
+    synth.speak(u);
+  }
+
+  function finish() {
+    token++; state = 'idle'; cur = -1; setUI();
+  }
+
+  function start() {
+    if (!synth) return;
+    srcText = textEl.value;
+    segs = segment(srcText);
+    if (!segs.length) { $('#stSub').textContent = '文字を入力してください'; return; }
+    token++; synth.cancel();
+    renderReader(srcText, segs);
+    speakFrom(0);
+  }
+
+  function jumpTo(i) {
+    token++; synth.cancel();
+    state = 'playing'; cur = i; setUI();
+    setTimeout(() => speakFrom(i), 60);
+  }
+
+  function pause() { token++; synth.cancel(); state = 'paused'; setUI(); }
+  function stop() { if (!synth) return; token++; synth.cancel(); state = 'idle'; cur = -1; setUI(); }
+
+  $('#play').addEventListener('click', () => {
+    if (state === 'playing') pause();
+    else if (state === 'paused') jumpTo(cur);
+    else start();
+  });
+  $('#stop').addEventListener('click', stop);
+  reader.addEventListener('click', (e) => {
+    const s = e.target.closest('.seg'); if (!s) return;
+    jumpTo(+s.dataset.i);
+  });
+  $('#test').addEventListener('click', () => {
+    if (!synth) return;
+    if (state !== 'idle') stop();
+    synth.cancel();
+    synth.speak(makeUtter('こんにちは。この声で読み上げます。'));
+  });
+
+  /* ---------- phrases ---------- */
+  const DEFAULT_PHRASES = ['こんにちは。', 'ありがとうございます。', 'すみません。', 'はい。', 'いいえ。', '少々お待ちください。', 'もう一度お願いします。', 'よろしくお願いします。'];
+  let phrases = store.get('kd.phrases', null);
+  if (!Array.isArray(phrases)) phrases = DEFAULT_PHRASES.slice();
+  let phEditing = false;
+  const savePh = () => store.set('kd.phrases', phrases);
+
+  function speakPhrase(p, btn) {
+    if (!synth) return;
+    if (state !== 'idle') stop();
+    synth.cancel();
+    document.querySelectorAll('.phbtn.speaking').forEach((b) => b.classList.remove('speaking'));
+    const u = makeUtter(applyDict(p));
+    btn.classList.add('speaking');
+    const done = () => btn.classList.remove('speaking');
+    u.onend = done; u.onerror = done;
+    synth.speak(u);
+  }
+
+  function renderPhrases() {
+    const box = $('#phrases'); box.innerHTML = '';
+    if (!phrases.length) {
+      const p = document.createElement('p'); p.className = 'empty'; p.style.margin = '0';
+      p.textContent = '定型文がありません。「編集」から追加できます。'; box.appendChild(p);
+    }
+    phrases.forEach((p, i) => {
+      const wrap = document.createElement('div'); wrap.className = 'ph';
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'phbtn'; b.textContent = p;
+      b.addEventListener('click', () => speakPhrase(p, b));
+      wrap.appendChild(b);
+      if (phEditing) {
+        const t = document.createElement('div'); t.className = 'phtools';
+        const ins = document.createElement('button'); ins.type = 'button'; ins.textContent = '挿入';
+        ins.setAttribute('aria-label', p + ' を文章欄に挿入');
+        ins.addEventListener('click', () => {
+          if (state !== 'idle') stop();
+          const s = textEl.selectionStart ?? textEl.value.length, e = textEl.selectionEnd ?? s;
+          textEl.value = textEl.value.slice(0, s) + p + textEl.value.slice(e);
+          store.set('kd.text', textEl.value); updateCount();
+        });
+        const up = document.createElement('button'); up.type = 'button'; up.textContent = '上へ';
+        up.setAttribute('aria-label', p + ' を上へ移動'); up.disabled = i === 0; if (i === 0) up.style.visibility = 'hidden';
+        up.addEventListener('click', () => { [phrases[i - 1], phrases[i]] = [phrases[i], phrases[i - 1]]; savePh(); renderPhrases(); });
+        const x = document.createElement('button'); x.type = 'button'; x.className = 'x'; x.textContent = '削除';
+        x.setAttribute('aria-label', p + ' を削除');
+        x.addEventListener('click', () => { phrases.splice(i, 1); savePh(); renderPhrases(); });
+        t.append(ins, up, x); wrap.appendChild(t);
+      }
+      box.appendChild(wrap);
+    });
+  }
+
+  $('#phedit').addEventListener('click', () => {
+    phEditing = !phEditing;
+    $('#phedit').textContent = phEditing ? '完了' : '編集';
+    $('#phedit').setAttribute('aria-pressed', String(phEditing));
+    $('#phform').hidden = !phEditing;
+    renderPhrases();
+    if (phEditing) $('#phin').focus();
+  });
+  $('#phform').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const v = $('#phin').value.trim();
+    if (!v) return;
+    if (!phrases.includes(v)) phrases.push(v);
+    savePh(); renderPhrases();
+    $('#phin').value = ''; $('#phin').focus();
+  });
+  renderPhrases();
+
+  setUI();
+})();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,21 @@
+{
+  "name": "コエダス",
+  "short_name": "コエダス",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#EEF1F4",
+  "theme_color": "#18202B",
+  "lang": "ja",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
